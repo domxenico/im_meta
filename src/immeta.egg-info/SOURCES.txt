@@ -1,0 +1,14 @@
+setup.py
+src/immeta/__init__.py
+src/immeta/coauthor_data.py
+src/immeta/im_meta.py
+src/immeta/network_inference.py
+src/immeta/query_node_selector.py
+src/immeta/reinforced_graph_generator.py
+src/immeta/seed_set_selector.py
+src/immeta/siamese_network.py
+src/immeta.egg-info/PKG-INFO
+src/immeta.egg-info/SOURCES.txt
+src/immeta.egg-info/dependency_links.txt
+src/immeta.egg-info/requires.txt
+src/immeta.egg-info/top_level.txt

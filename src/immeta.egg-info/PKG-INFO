@@ -1,0 +1,12 @@
+Metadata-Version: 2.2
+Name: immeta
+Version: 0.0.0
+Summary: IM-META: Influence Maximization with Node Metadata
+Requires-Python: >=3.8
+Requires-Dist: torch>=2.0.0
+Requires-Dist: torch-geometric>=2.3.0
+Requires-Dist: networkx>=3.0
+Requires-Dist: numpy>=1.24.0
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
