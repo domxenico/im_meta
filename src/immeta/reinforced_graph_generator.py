@@ -18,28 +18,28 @@ class ReinforcedGraphGenerator:
         
         # add explored edges with probability 1.0
         for u, v in explored_graph.edges():
-            G_gen_prun.add_edge(u, v, weight=1.0, edge_prob=1.0)
+            G_gen_prun.add_edge(u, v, weight=0.1, edge_prob=1.0)
         
-        # Select confident edges (θ >= threshold)
+        # select confident edges (θ >= threshold)
         confident_edges = {pair: prob for pair, prob in edge_probabilities.items() 
                           if prob >= self.threshold}
         
-        # Add confident inferred edges
+        # add confident inferred edges
         for (u, v), theta in confident_edges.items():
             if not G_gen_prun.has_edge(u, v):
-                G_gen_prun.add_edge(u, v, edge_prob=theta, weight=0.0)  # Will compute weight below
+                G_gen_prun.add_edge(u, v, edge_prob=theta, weight=0.0)  # weight computed below
         
-        # Compute diffusion probabilities based on model
+        # compute diffusion probabilities based on model
         if self.diffusion_model == 'IC':
             # IC model: uniform diffusion probability
-            p_uv = 0.1  # Standard value from literature
+            p_uv = 0.1
             for u, v in G_gen_prun.edges():
                 theta = G_gen_prun[u][v]['edge_prob']
                 G_gen_prun[u][v]['weight'] = theta * p_uv
         
         elif self.diffusion_model == 'WC':
             # WC model: weight = 1/degree
-            # Estimate degrees using edge probabilities
+            # estimate degrees using edge probabilities
             estimated_degrees = defaultdict(float)
             for u, v in G_gen_prun.edges():
                 theta = G_gen_prun[u][v]['edge_prob']
