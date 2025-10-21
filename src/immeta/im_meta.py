@@ -131,8 +131,8 @@ class IMMETA:
         )
         
         print("selecting seed nodes...")
-        seeds = self.seed_selector.select_seeds(G_final, explored_nodes)
+        seeds, sigma = self.seed_selector.select_seeds(G_final, explored_nodes)
         
         print(f"\nselected seeds: {seeds}")
         
-        return seeds, explored_graph
+        return seeds, explored_graph, sigma

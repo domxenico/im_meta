@@ -16,24 +16,30 @@ def main():
     
     nodes_sum = 0
     edges_sum = 0
+    sigma_sum = 0
     for mc in range(MC_SIM):
 
         im_meta = IMMETA(
             feature_dim=feature_dim,
             k=5,           # n seeds
-            T=NUM_QUERIES,          # n queries
+            T=NUM_QUERIES,
             alpha=1.0,     # balance parameter
             threshold=0.5, # confident edge threshold (epsilon)
             diffusion_model='IC'
         )
         
-        seeds, explored_graph = im_meta.run(G_full, node_features)
+        seeds, explored_graph, sigma = im_meta.run(G_full, node_features)
         nodes_sum += len(explored_graph.nodes())
         edges_sum += len(explored_graph.edges())
+        sigma_sum += sigma
+        
+        print("-"*10)
         print(f"\nMC {mc}\nexplored graph: {len(explored_graph.nodes())}/{len(G_full.nodes())} nodes , {len(explored_graph.edges())}/{len(G_full.edges())} edges")
+        print(f"sigma: {sigma}")
     
     print("\n","-"*10)
     print(f"average explored graph: {nodes_sum/MC_SIM} nodes , {edges_sum/MC_SIM} edges")
+    print(f"average sigma {sigma_sum/MC_SIM}")
     print(f"last iteration seed nodes: {seeds}")
 
 if __name__ == "__main__":
