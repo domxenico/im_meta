@@ -12,7 +12,7 @@ from .network_inference import NetworkInference
 class IMMETA:
     def __init__(self, feature_dim: int, k: int = 5, T: int = 60,
                  alpha: float = 1.0, threshold: float = 0.5,
-                 diffusion_model: str = 'IC'):
+                 diffusion_model: str = 'IC', real_graph: nx.Graph = nx.Graph()):
         
         self.k = k  # n seeds
         self.T = T  # n queries
@@ -21,7 +21,7 @@ class IMMETA:
         self.network_inference = NetworkInference(feature_dim)
         self.graph_generator = ReinforcedGraphGenerator(threshold, diffusion_model)
         self.query_selector = QueryNodeSelector(alpha, k)
-        self.seed_selector = SeedSetSelector(k)
+        self.seed_selector = SeedSetSelector(k, real_graph=real_graph)
     
     def run(self, G_full: nx.Graph, node_features: Dict[int, np.ndarray],
             initial_nodes: List[int] = None) -> Tuple[List[int], nx.Graph]:
@@ -31,6 +31,7 @@ class IMMETA:
         returns:
             seeds: selected seed nodes
             explored_graph: final explored subgraph
+            sigma
         """
         
         if initial_nodes is None:
@@ -40,18 +41,6 @@ class IMMETA:
         explored_nodes = set(initial_nodes)
         explored_edges = set()
         
-        
-        """
-        print("building initial subgraph by querying initial node...")
-        for node in initial_nodes:
-            neighbors = set(G_full.neighbors(node))
-            explored_nodes.add(node)
-            explored_nodes.update(neighbors)
-            
-            for neighbor in neighbors:
-                explored_edges.add((min(node, neighbor), max(node, neighbor)))
-        """
-
         explored_graph = nx.Graph()
         explored_graph.add_nodes_from(explored_nodes)
         explored_graph.add_edges_from(explored_edges)
@@ -71,7 +60,7 @@ class IMMETA:
             uncertain_pairs = []
             all_nodes_set = set(G_full.nodes())
             unexplored_nodes = all_nodes_set - explored_nodes
-            print(f"UNEXPLORED NODES LEN: {unexplored_nodes.__len__()}")
+            
             for u in explored_nodes:
                 for v in unexplored_nodes:
                     uncertain_pairs.append((u, v))
@@ -131,8 +120,10 @@ class IMMETA:
         )
         
         print("selecting seed nodes...")
-        seeds, sigma = self.seed_selector.select_seeds(G_final, explored_nodes)
+        seeds, est_sigma = self.seed_selector.select_seeds(G_final, explored_nodes)
         
         print(f"\nselected seeds: {seeds}")
         
+        print("\n -----------------------------------\n computing influence spread on real graph")
+        sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seeds)
         return seeds, explored_graph, sigma

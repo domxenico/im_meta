@@ -3,10 +3,11 @@ import networkx as nx
 import random
 
 class SeedSetSelector:
-    def __init__(self, k: int, num_simulations: int = 100, ic_diff_prob: float = 0.1):
+    def __init__(self, k: int, num_simulations: int = 100, ic_diff_prob: float = 0.1, real_graph: nx.Graph = nx.Graph()):
         self.k = k
         self.num_simulations = num_simulations
         self.ic_diff_prob = ic_diff_prob
+        self.real_graph = real_graph
     
     def select_seeds(self, G: nx.Graph, explored_nodes: Set[int]) -> List[int]:
         """modified greedy"""
@@ -49,6 +50,30 @@ class SeedSetSelector:
                         if v not in influenced:
                             # activation probability = theta_uv * IC diffusion probability
                             if random.random() < (G[u][v]['weight']):
+                                influenced.add(v)
+                                new_active.append(v)
+                active = new_active
+            
+            total_influenced += len(influenced)
+        
+        return total_influenced / self.num_simulations
+    
+    def _compute_real_influence_spread(self, G: nx.Graph, seed_set: List[int]):
+        """real influence spread via Monte Carlo 
+        simulation with independent cascade [sigma(.)]"""
+
+        total_influenced = 0
+        
+        for _ in range(self.num_simulations):
+            influenced = set(seed_set)
+            active = list(seed_set)
+            
+            while active:
+                new_active = []
+                for u in active:
+                    for v in G.neighbors(u):
+                        if v not in influenced:
+                            if random.random() < self.ic_diff_prob:
                                 influenced.add(v)
                                 new_active.append(v)
                 active = new_active
