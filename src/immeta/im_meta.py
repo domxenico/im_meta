@@ -22,6 +22,7 @@ class IMMETA:
         self.graph_generator = ReinforcedGraphGenerator(threshold, diffusion_model)
         self.query_selector = QueryNodeSelector(alpha, k)
         self.seed_selector = SeedSetSelector(k, real_graph=real_graph)
+        self.real_graph = real_graph
     
     def run(self, G_full: nx.Graph, node_features: Dict[int, np.ndarray],
             initial_nodes: List[int] = None) -> Tuple[List[int], nx.Graph]:
@@ -125,5 +126,7 @@ class IMMETA:
         print(f"\nselected seeds: {seeds}")
         
         print("\n -----------------------------------\n computing influence spread on real graph")
-        sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seeds)
-        return seeds, explored_graph, sigma
+        
+        # theoretically this should be the way we test the seeds and we plot sigma but it is not made in this way
+        # sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seeds)
+        return seeds, explored_graph, est_sigma

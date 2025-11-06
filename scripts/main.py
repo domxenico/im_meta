@@ -1,11 +1,47 @@
 from immeta import IMMETA, coauthor_data
+import random
+from collections import deque
 
 
-mc_sim = 1
+mc_sim = 10
 coauthor_dataset = "CS"
 
-budgets_to_test = [60]
+budgets_to_test = [20]
 results_file_name = "results_log.txt"
+
+def forest_fire_sample(G_full, target_size=3000, p_forward=0.7, p_backward=0.7):
+    """
+    Forest Fire sampling from an existing graph G_full.
+    - target_size: numero di nodi da campionare
+    - p_forward: probabilità di "bruciare" i vicini in avanti
+    - p_backward: probabilità di bruciare vicini già visitati (spesso p_backward ≈ 0.3–0.7)
+    """
+    # Se il grafo è più piccolo del target, restituisci tutto
+    if len(G_full) <= target_size:
+        return G_full.copy()
+
+    seed = random.choice(list(G_full.nodes()))
+    visited = set([seed])
+    queue = deque([seed])
+
+    while len(visited) < target_size and queue:
+        u = queue.popleft()
+        neighbors = list(G_full.neighbors(u))
+        random.shuffle(neighbors)
+
+        # leskovec usa numero geometrico di vicini, approssimo:
+        burn_forward = [v for v in neighbors if v not in visited and random.random() < p_forward]
+        burn_backward = [v for v in neighbors if v in visited and random.random() < p_backward]
+
+        to_burn = burn_forward + burn_backward
+
+        for v in to_burn:
+            if len(visited) >= target_size:
+                break
+            if v not in visited:
+                visited.add(v)
+                queue.append(v)
+    return G_full.subgraph(visited).copy()
 
 def run_experiment(G_full, node_features, feature_dim, num_queries):
    
@@ -40,14 +76,14 @@ def run_experiment(G_full, node_features, feature_dim, num_queries):
     
     return avg_nodes, avg_sigma
 
-
 def main():
     
     print("starting influence maximization experiments...")
     
     print("\nloading dataset...")
-    g_full, node_features = coauthor_data(coauthor_dataset)
-    
+    g_real, node_features = coauthor_data(coauthor_dataset)
+    g_full = forest_fire_sample(g_real, target_size=3000, p_forward=0.35, p_backward=0.3)
+    print(f"forest fire: {len(g_full.nodes())} nodes and {len(g_full.edges())} edges")
     feature_dim = len(next(iter(node_features.values())))
     
     try:
