@@ -30,7 +30,9 @@ class SeedSetSelector:
             if best_node is not None:
                 seeds.append(best_node)
         
-        sigma = self._compute_influence_spread(G, seeds)
+        sigma = self._compute_real_influence_spread(G, seeds)
+        est_sigma = self._compute_influence_spread(G, seeds)
+
         return seeds, sigma
     
     def _compute_influence_spread(self, G: nx.Graph, seed_set: List[int]) -> float:

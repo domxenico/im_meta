@@ -1,75 +1,51 @@
+import numpy as np
+import torch
+import os 
+
 from immeta import IMMETA, coauthor_data
-import random
-from collections import deque
+from immeta.gsm import AutoencoderGSM
+from immeta.gsm import train_gsm_model
 
+from immeta.feature_utils import create_dirty_features
+from immeta.feature_utils import reconstruct_features
+from immeta.forest_fire import forest_fire_sample
 
-mc_sim = 10
-coauthor_dataset = "CS"
-
-budgets_to_test = [20]
+MC_SIM = 1
+COAUTHOR_DATASET = "CS"
+budgets_to_test = [20] # in case of various budget test add [20, desired_budget, another_desired_budget]
 results_file_name = "results_log.txt"
 
-def forest_fire_sample(G_full, target_size=3000, p_forward=0.7, p_backward=0.7):
-    """
-    Forest Fire sampling from an existing graph G_full.
-    - target_size: numero di nodi da campionare
-    - p_forward: probabilità di "bruciare" i vicini in avanti
-    - p_backward: probabilità di bruciare vicini già visitati (spesso p_backward ≈ 0.3–0.7)
-    """
-    # Se il grafo è più piccolo del target, restituisci tutto
-    if len(G_full) <= target_size:
-        return G_full.copy()
+if COAUTHOR_DATASET == 'CS':
+    FEATURE_DIM = 6805
+else:
+    FEATURE_DIM = 8415 # Physics
+    
+GSM_LATENT_DIM = 256 # generative surrogate model latent dimension
 
-    seed = random.choice(list(G_full.nodes()))
-    visited = set([seed])
-    queue = deque([seed])
-
-    while len(visited) < target_size and queue:
-        u = queue.popleft()
-        neighbors = list(G_full.neighbors(u))
-        random.shuffle(neighbors)
-
-        # leskovec usa numero geometrico di vicini, approssimo:
-        burn_forward = [v for v in neighbors if v not in visited and random.random() < p_forward]
-        burn_backward = [v for v in neighbors if v in visited and random.random() < p_backward]
-
-        to_burn = burn_forward + burn_backward
-
-        for v in to_burn:
-            if len(visited) >= target_size:
-                break
-            if v not in visited:
-                visited.add(v)
-                queue.append(v)
-    return G_full.subgraph(visited).copy()
+GSM_MODEL_PATH = f"gsm_autoencoder_{COAUTHOR_DATASET}.pth"
+CORRUPTION_RATE = 0.3 
+GSM_EPOCHS = 10
+GSM_BATCH_SIZE = 64
 
 def run_experiment(G_full, node_features, feature_dim, num_queries):
-   
-    print(f"  starting simulation (budget={num_queries})...")
     
+    print(f"starting simulation (budget={num_queries})...")
     nodes_sum = 0
-    edges_sum = 0
     sigma_sum = 0
     
-    for mc in range(mc_sim):
+    for mc in range(MC_SIM):
         im_meta = IMMETA(
             feature_dim=feature_dim,
-            k=5,           # n seeds
-            T=num_queries, # uses the dynamic budget
-            alpha=1.0,     # balance parameter
-            threshold=0.5, # confident edge threshold (epsilon)
-            diffusion_model='IC',
-            real_graph=G_full
+            k=5, T=num_queries, alpha=1.0, threshold=0.5,
+            diffusion_model='IC', real_graph=G_full
         )
-        
         seeds, explored_graph, sigma = im_meta.run(G_full, node_features)
-        
         nodes_sum += len(explored_graph.nodes())
-        edges_sum += len(explored_graph.edges())
         sigma_sum += sigma
+        print(f"sigma {sigma}")
     
-    avg_nodes = nodes_sum / mc_sim
-    avg_sigma = sigma_sum / mc_sim
+    avg_nodes = nodes_sum / MC_SIM
+    avg_sigma = sigma_sum / MC_SIM
     
     print(f"  average discovered nodes: {avg_nodes}")
     print(f"  average sigma: {avg_sigma}")
@@ -79,36 +55,77 @@ def run_experiment(G_full, node_features, feature_dim, num_queries):
 def main():
     
     print("starting influence maximization experiments...")
-    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+
     print("\nloading dataset...")
-    g_real, node_features = coauthor_data(coauthor_dataset)
+    g_real, node_features_CLEAN = coauthor_data(COAUTHOR_DATASET)
+    
+    # --- MODIFICA: Estraggo le features in un tensore per l'addestramento
+    # (Assumo che node_features_CLEAN sia un dict {id: np.array})
+    # (Assumo che gli ID dei nodi siano 0, 1, ..., N-1 in ordine)
+    try:
+        all_features_np = np.stack([node_features_CLEAN[i] for i in range(len(node_features_CLEAN))])
+        all_features_tensor = torch.from_numpy(all_features_np).float()
+    except Exception as e:
+        print(f"Errore: non è stato possibile impilare le features. {e}")
+        print("Assicurati che 'coauthor_data' restituisca un dict ordinato 0..N-1.")
+        return
+
+    # --- MODIFICA: Addestramento o Caricamento del GSM ---
+    gsm_model = AutoencoderGSM(FEATURE_DIM, GSM_LATENT_DIM).to(device)
+    
+    if not os.path.exists(GSM_MODEL_PATH):
+        print(f"Modello GSM non trovato in '{GSM_MODEL_PATH}'.")
+        # Addestra il modello
+        train_gsm_model(
+            full_features=all_features_tensor,
+            input_dim=FEATURE_DIM,
+            latent_dim=GSM_LATENT_DIM,
+            epochs=GSM_EPOCHS,
+            batch_size=GSM_BATCH_SIZE,
+            corruption_rate=CORRUPTION_RATE,
+            device=device,
+            save_path=GSM_MODEL_PATH
+        )
+        # Il modello è già in memoria e addestrato
+    else:
+        print(f"Modello GSM pre-addestrato trovato. Caricamento da '{GSM_MODEL_PATH}'.")
+        # Carica il modello
+        gsm_model.load_state_dict(torch.load(GSM_MODEL_PATH, map_location=device))
+
+    # --- Fase di Imputazione (come prima) ---
+    node_features_DIRTY = create_dirty_features(node_features_CLEAN, CORRUPTION_RATE)
+    node_features_RECONSTRUCTED = reconstruct_features(
+        node_features_DIRTY, 
+        gsm_model, 
+        device
+    )
+    
+    # --- Esecuzione Esperimento (come prima) ---
     g_full = forest_fire_sample(g_real, target_size=3000, p_forward=0.35, p_backward=0.3)
     print(f"forest fire: {len(g_full.nodes())} nodes and {len(g_full.edges())} edges")
-    feature_dim = len(next(iter(node_features.values())))
     
     try:
         with open(results_file_name, 'w', encoding='utf-8') as f:
-            f.write("influence maximization experiment results\n")
+            f.write("influence maximization experiment results (CON IMPUTAZIONE GSM)\n")
             f.write("=========================================\n\n")
             
-            # --- main loop over query budgets ---
             for budget in budgets_to_test:
-                
                 print(f"\n--- executing budget: {budget} queries ---")
                 
-                # run the experiment for the current budget
                 discovered_nodes, obtained_sigma = run_experiment(
                     g_full, 
-                    node_features, 
-                    feature_dim, 
+                    node_features_RECONSTRUCTED, # Usa i dati ricostruiti
+                    FEATURE_DIM, 
                     budget
                 )
                 
-                # write results to the text file
                 f.write(f"[budget = {budget}]\n")
                 f.write(f"  discovered nodes (avg): {discovered_nodes}\n")
                 f.write(f"  obtained sigma (avg): {obtained_sigma}\n\n")
-            
+                print(f"sigma: {obtained_sigma}")
+                
             print(f"\n--- experiments completed ---")
             print(f"all results saved to '{results_file_name}'.")
 
