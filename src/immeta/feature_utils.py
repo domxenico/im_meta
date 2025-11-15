@@ -8,35 +8,44 @@ from immeta.gsm import AutoencoderGSM
 def create_dirty_features( original_features: Dict[int, np.ndarray], 
                           corruption_rate: float) -> Dict[int, np.ndarray]:
     
-    """ Crea una copia dei metadati con feature mancanti (impostate a 0). """
+    """ creates a metadata copy with some missing features (at the momemnt missing means = 0) 
+    idea: represent missing features with 0.5"""
 
-    print(f"  Simulazione dati parziali (corruption rate: {corruption_rate})")
+    print(f"  simulating with partial data (corruption rate: {corruption_rate})")
     dirty_features = {}
+    masks = {}
     for node_id, features_np in original_features.items():
+        
         x_clean = torch.from_numpy(features_np).float()
         mask = (torch.rand_like(x_clean) > corruption_rate).float()
-        x_dirty = x_clean * mask
-        dirty_features[node_id] = x_dirty.numpy()
-    return dirty_features
+        
+        dirty_features[node_id] = (x_clean * mask).numpy()
+        masks[node_id] = mask.numpy()
+    return dirty_features, masks
 
-def reconstruct_features(
-    dirty_features: Dict[int, np.ndarray], 
-    model: AutoencoderGSM, 
-    device: torch.device
-) -> Dict[int, np.ndarray]:
-    """ Usa il modello GSM addestrato per imputare i metadati mancanti. """
-    print("  Ricostruzione metadati con GSM (Autoencoder)...")
+def reconstruct_features(dirty_features, masks, model, device):
     reconstructed_features = {}
-    model.eval() # Modalità inferenza
-    
+    model.eval()
     with torch.no_grad():
         for node_id, features_np in dirty_features.items():
-            x_dirty_tensor = torch.from_numpy(features_np).float()
-            x_dirty_tensor = x_dirty_tensor.unsqueeze(0).to(device)
-            x_reconstructed_logits = model(x_dirty_tensor)
-            x_reconstructed_probs = torch.sigmoid(x_reconstructed_logits)
-            reconstructed_array = x_reconstructed_probs.squeeze(0).cpu().numpy()
-            reconstructed_features[node_id] = reconstructed_array
+            # conversion in tensors
             
-    print("  Ricostruzione completata.")
+            # if the node has at least 1 masked feature, we reconstruct
+            if (masks[node_id] == 0).any():
+                
+                x_dirty_tensor = torch.from_numpy(features_np).float().unsqueeze(0).to(device)
+                mask_tensor = torch.from_numpy(masks[node_id]).float().unsqueeze(0).to(device) 
+                
+                #concatenate input and mask
+                combined_input = torch.cat([x_dirty_tensor, mask_tensor], dim=1) 
+
+                # gsm takes the combined input, returns reconstructed features
+                x_reconstructed_logits = model(combined_input)
+                x_reconstructed_probs = torch.sigmoid(x_reconstructed_logits)
+                reconstructed_features[node_id] = x_reconstructed_probs.squeeze(0).cpu().numpy()
+                
+            else:
+                print(f"found a non corrupted array")
+                reconstructed_features[node_id] = features_np
+
     return reconstructed_features

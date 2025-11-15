@@ -9,7 +9,9 @@ from typing import Dict
 # node features at:  data.x
 
 def coauthor_data(data_name):
-
+    """
+    returns a graph representing the selected dataset, node feature are 0 or 1
+    """
     FEATURE_DIM = 8415 if data_name == 'Physics' else 6805
 
     dataset = Coauthor(root="data/Coauthor"+data_name, name=data_name)
@@ -33,5 +35,5 @@ def coauthor_data(data_name):
     
     for i in range(data.num_nodes):
         node_features[i] = features_np[i] 
-
+    
     return G, node_features

@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple, Set
 import networkx as nx
 import numpy as np
 import random
+import time
 
 from .query_node_selector import QueryNodeSelector
 from .reinforced_graph_generator import ReinforcedGraphGenerator
@@ -27,7 +28,7 @@ class IMMETA:
     def run(self, G_full: nx.Graph, node_features: Dict[int, np.ndarray],
             initial_nodes: List[int] = None) -> Tuple[List[int], nx.Graph]:
         """
-        complete IM-META pipeline
+        full IM-META pipeline
         
         returns:
             seeds: selected seed nodes
@@ -39,15 +40,18 @@ class IMMETA:
             # random initial node to build initial subgraph
             initial_nodes = random.sample(list(G_full.nodes()), 4)
         
+        # explored != queried
         explored_nodes = set(initial_nodes)
         explored_edges = set()
         
+        queried_nodes = set()
+
         explored_graph = nx.Graph()
         explored_graph.add_nodes_from(explored_nodes)
         explored_graph.add_edges_from(explored_edges)
         
         print(f"starting with {len(initial_nodes)} initial node/s")
-        print(f"query budget: {self.T}, Seed budget: {self.k}")
+        print(f"query budget: {self.T}, seed budget: {self.k}")
         
         # NDP
         for t in range(self.T):
@@ -60,10 +64,10 @@ class IMMETA:
             # uncertain edges
             uncertain_pairs = []
             all_nodes_set = set(G_full.nodes())
-            unexplored_nodes = all_nodes_set - explored_nodes
+            unqueried_nodes = all_nodes_set - queried_nodes
             
-            for u in explored_nodes:
-                for v in unexplored_nodes:
+            for u in (explored_nodes - queried_nodes):
+                for v in unqueried_nodes:
                     uncertain_pairs.append((u, v))
             
             print(f"predicting {len(uncertain_pairs)} uncertain edges...")
@@ -71,22 +75,24 @@ class IMMETA:
                 node_features, uncertain_pairs
             )
             
+            # SEI QUI ----------------------------------------------------
             # NDP2: reinforced graph generation
             print("generating reinforced graph...")
             G_gen_prun = self.graph_generator.generate(
-                explored_graph, edge_probs, all_nodes_set
+                explored_graph, edge_probs, all_nodes_set, queried_nodes
             )
             
             # NDP3: query node selection
             print("selecting next query node...")
             next_query = self.query_selector.select_next_query(
-                explored_graph, G_gen_prun, explored_nodes
+                explored_graph, G_gen_prun, explored_nodes, queried_nodes
             )
             
             if next_query is None:
                 print("no more nodes to query")
                 break
             
+            queried_nodes.add(next_query)
             # query execution
             neighbors = set(G_full.neighbors(next_query))
             new_nodes = neighbors - explored_nodes
@@ -118,7 +124,7 @@ class IMMETA:
         
         unexplored_nodes = all_nodes_set - explored_nodes
         G_final = self.graph_generator.generate(
-            explored_graph, edge_probs, unexplored_nodes
+            explored_graph, edge_probs, unexplored_nodes, queried_nodes
         )
         
         print("selecting seed nodes...")

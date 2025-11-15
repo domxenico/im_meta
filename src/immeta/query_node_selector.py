@@ -10,17 +10,18 @@ class QueryNodeSelector:
     
     def select_next_query(self, explored_graph: nx.Graph, 
                          reinforced_graph: nx.Graph,
-                         explored_nodes: Set[int]) -> int:
+                         explored_nodes: Set[int],
+                         queried_nodes: Set[int]) -> int:
         
         # step 1: find k potentially influential nodes using degree discount heuristics
         potential_seeds = self._degree_discount_heuristic(reinforced_graph, self.k)
         
         # filter out already explored potential seeds
-        potential_seeds = [s for s in potential_seeds if s not in explored_nodes]
+        potential_seeds = [s for s in potential_seeds if s not in queried_nodes]
         
         if not potential_seeds:
-            # fallback: random unexplored node with edges in reinforced graph
-            candidates = [n for n in reinforced_graph.nodes() if n not in explored_nodes]
+            # fallback: random unqueried node with edges in reinforced graph
+            candidates = [n for n in reinforced_graph.nodes() if n not in queried_nodes]
             return random.choice(candidates) if candidates else None
         
         # Step 2: Compute ranking for each explored node

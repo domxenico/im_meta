@@ -15,15 +15,11 @@ COAUTHOR_DATASET = "CS"
 budgets_to_test = [20] # in case of various budget test add [20, desired_budget, another_desired_budget]
 results_file_name = "results_log.txt"
 
-if COAUTHOR_DATASET == 'CS':
-    FEATURE_DIM = 6805
-else:
-    FEATURE_DIM = 8415 # Physics
-    
-GSM_LATENT_DIM = 256 # generative surrogate model latent dimension
+FEATURE_DIM = 6805 if COAUTHOR_DATASET == 'CS' else 8415 # Physics
 
+GSM_LATENT_DIM = 256 # generative-surrogate-model latent dimension
 GSM_MODEL_PATH = f"gsm_autoencoder_{COAUTHOR_DATASET}.pth"
-CORRUPTION_RATE = 0.3 
+CORRUPTION_RATE = 0.3
 GSM_EPOCHS = 10
 GSM_BATCH_SIZE = 64
 
@@ -56,28 +52,26 @@ def main():
     
     print("starting influence maximization experiments...")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    print(f"using device: {device}")
 
     print("\nloading dataset...")
-    g_real, node_features_CLEAN = coauthor_data(COAUTHOR_DATASET)
+    G_real, real_node_features = coauthor_data(COAUTHOR_DATASET)
     
-    # --- MODIFICA: Estraggo le features in un tensore per l'addestramento
-    # (Assumo che node_features_CLEAN sia un dict {id: np.array})
-    # (Assumo che gli ID dei nodi siano 0, 1, ..., N-1 in ordine)
+    # NODE METADATA IMPUTATION
     try:
-        all_features_np = np.stack([node_features_CLEAN[i] for i in range(len(node_features_CLEAN))])
+        # matrix N_nodes x M_features 
+        all_features_np = np.stack([real_node_features[i] for i in range(len(real_node_features))])
         all_features_tensor = torch.from_numpy(all_features_np).float()
     except Exception as e:
-        print(f"Errore: non è stato possibile impilare le features. {e}")
-        print("Assicurati che 'coauthor_data' restituisca un dict ordinato 0..N-1.")
+        print(f"error: cannot stack features {e}")
+        print("check that 'coauthor_data' returns an ordered dict 0..N-1.")
         return
 
-    # --- MODIFICA: Addestramento o Caricamento del GSM ---
     gsm_model = AutoencoderGSM(FEATURE_DIM, GSM_LATENT_DIM).to(device)
     
     if not os.path.exists(GSM_MODEL_PATH):
-        print(f"Modello GSM non trovato in '{GSM_MODEL_PATH}'.")
-        # Addestra il modello
+        print(f"cannot find pre-trained GSM at '{GSM_MODEL_PATH}'.")
+        # GSM training
         train_gsm_model(
             full_features=all_features_tensor,
             input_dim=FEATURE_DIM,
@@ -88,35 +82,35 @@ def main():
             device=device,
             save_path=GSM_MODEL_PATH
         )
-        # Il modello è già in memoria e addestrato
     else:
-        print(f"Modello GSM pre-addestrato trovato. Caricamento da '{GSM_MODEL_PATH}'.")
-        # Carica il modello
+        print(f"found pre-trained GSM, loading from '{GSM_MODEL_PATH}'.")
         gsm_model.load_state_dict(torch.load(GSM_MODEL_PATH, map_location=device))
 
-    # --- Fase di Imputazione (come prima) ---
-    node_features_DIRTY = create_dirty_features(node_features_CLEAN, CORRUPTION_RATE)
+    # imputation
+    node_features_DIRTY, node_MASKS = create_dirty_features(real_node_features, CORRUPTION_RATE)
     node_features_RECONSTRUCTED = reconstruct_features(
-        node_features_DIRTY, 
+        node_features_DIRTY,
+        node_MASKS,
         gsm_model, 
         device
     )
+
     
-    # --- Esecuzione Esperimento (come prima) ---
-    g_full = forest_fire_sample(g_real, target_size=3000, p_forward=0.35, p_backward=0.3)
-    print(f"forest fire: {len(g_full.nodes())} nodes and {len(g_full.edges())} edges")
+    # MONTECARLO experiment
+    # G_real = forest_fire_sample(G_real, target_size=3000, p_forward=0.35, p_backward=0.3)
+    # print(f"forest fire: {len(g_full.nodes())} nodes and {len(g_full.edges())} edges")
     
     try:
         with open(results_file_name, 'w', encoding='utf-8') as f:
-            f.write("influence maximization experiment results (CON IMPUTAZIONE GSM)\n")
+            f.write("influence maximization experiment results\n")
             f.write("=========================================\n\n")
             
             for budget in budgets_to_test:
                 print(f"\n--- executing budget: {budget} queries ---")
                 
                 discovered_nodes, obtained_sigma = run_experiment(
-                    g_full, 
-                    node_features_RECONSTRUCTED, # Usa i dati ricostruiti
+                    G_real, 
+                    node_features_RECONSTRUCTED, # data reconstructed by GSM 
                     FEATURE_DIM, 
                     budget
                 )

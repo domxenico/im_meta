@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import Dict, List, Tuple, Set
 import networkx as nx
-
+import time
 
 class ReinforcedGraphGenerator:
     def __init__(self, threshold: float = 0.5, diffusion_model: str = 'IC'):
@@ -9,7 +9,7 @@ class ReinforcedGraphGenerator:
         self.diffusion_model = diffusion_model  # 'IC' or 'WC'
     
     def generate(self, explored_graph: nx.Graph, edge_probabilities: Dict[Tuple[int, int], float],
-                 all_nodes: Set[int]) -> nx.Graph:
+                 all_nodes: Set[int], queried_nodes: Set[int]) -> nx.Graph:
         """generate reinforced weighted graph G_gen-prun"""
         
         # create weighted graph starting from explored edges
@@ -20,10 +20,18 @@ class ReinforcedGraphGenerator:
         for u, v in explored_graph.edges():
             G_gen_prun.add_edge(u, v, weight=0.1, edge_prob=1.0)
         
-        # select confident edges (θ >= threshold)
+        # print(f"-------------DEBUG-------------")
+        # print(f"G_gen_prun has: {len(G_gen_prun.nodes())} nodes and {len(G_gen_prun.edges())} edges")
+        # time.sleep(5)
+
+        # select confident edges (theta >= threshold)
         confident_edges = {pair: prob for pair, prob in edge_probabilities.items() 
                           if prob >= self.threshold}
         
+        # print(f"-------------DEBUG-------------")
+        # print(f"confident edges are: {len(confident_edges)}")
+        # time.sleep(10)
+
         # add confident inferred edges
         for (u, v), theta in confident_edges.items():
             if not G_gen_prun.has_edge(u, v):
