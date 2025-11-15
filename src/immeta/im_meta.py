@@ -75,7 +75,6 @@ class IMMETA:
                 node_features, uncertain_pairs
             )
             
-            # SEI QUI ----------------------------------------------------
             # NDP2: reinforced graph generation
             print("generating reinforced graph...")
             G_gen_prun = self.graph_generator.generate(
@@ -91,8 +90,8 @@ class IMMETA:
             if next_query is None:
                 print("no more nodes to query")
                 break
-            
             queried_nodes.add(next_query)
+
             # query execution
             neighbors = set(G_full.neighbors(next_query))
             new_nodes = neighbors - explored_nodes

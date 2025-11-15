@@ -17,18 +17,18 @@ class QueryNodeSelector:
         potential_seeds = self._degree_discount_heuristic(reinforced_graph, self.k)
         
         # filter out already explored potential seeds
-        potential_seeds = [s for s in potential_seeds if s not in queried_nodes]
+        potential_seeds = [s for s in potential_seeds if s not in explored_nodes]
         
         if not potential_seeds:
             # fallback: random unqueried node with edges in reinforced graph
             candidates = [n for n in reinforced_graph.nodes() if n not in queried_nodes]
             return random.choice(candidates) if candidates else None
         
-        # Step 2: Compute ranking for each explored node
+        # step 2: compute ranking for each explored node
         best_node = None
         best_rank = float('-inf')
         
-        for u in explored_nodes:
+        for u in (explored_nodes - queried_nodes):
             # Compute residual degree
             estimated_degree = reinforced_graph.degree(u, weight='edge_prob')
             observed_degree = explored_graph.degree(u)
@@ -41,9 +41,9 @@ class QueryNodeSelector:
                     distance = nx.shortest_path_length(reinforced_graph, u, v)
                     sum_geodesic += distance
                 except nx.NetworkXNoPath:
-                    sum_geodesic += 1000  # Large penalty for unreachable nodes
+                    sum_geodesic += 1000  # large penalty for unreachable nodes
             
-            # Topology-aware ranking (Equation 3)
+            # topology-aware ranking (Equation 3)
             rank = residual_degree - self.alpha * sum_geodesic
             
             if rank > best_rank:
@@ -61,11 +61,11 @@ class QueryNodeSelector:
             if not degrees:
                 break
             
-            # Select node with highest degree
+            # select node with highest degree
             v = max(degrees, key=degrees.get)
             seeds.append(v)
             
-            # Discount degrees of neighbors
+            # discount degrees of neighbors
             for u in G.neighbors(v):
                 if u in degrees:
                     degrees[u] -= 1
