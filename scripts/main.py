@@ -5,6 +5,7 @@ import os
 from immeta import IMMETA, coauthor_data
 from immeta.gsm import AutoencoderGSM
 from immeta.gsm import train_gsm_model
+from immeta.random_baseline import RandomBaseline
 
 from immeta.feature_utils import create_dirty_features
 from immeta.feature_utils import reconstruct_features
@@ -23,28 +24,37 @@ CORRUPTION_RATE = 0.3
 GSM_EPOCHS = 10
 GSM_BATCH_SIZE = 64
 
-def run_experiment(G_full, node_features, feature_dim, num_queries):
-    
-    print(f"starting simulation (budget={num_queries})...")
+
+def run_experiment(model_type, G_full, node_features, feature_dim, num_queries):
+    """
+    model_type: "IMMETA" oppure "RAND"
+    """
+    print(f"starting simulation [{model_type}] (budget={num_queries})...")
     nodes_sum = 0
     sigma_sum = 0
     
     for mc in range(MC_SIM):
-        im_meta = IMMETA(
-            feature_dim=feature_dim,
-            k=5, T=num_queries, alpha=1.0, threshold=0.5,
-            diffusion_model='IC', real_graph=G_full
-        )
-        seeds, explored_graph, sigma = im_meta.run(G_full, node_features)
+        if model_type == "IMMETA":
+            model = IMMETA(
+                feature_dim=feature_dim,
+                k=5, T=num_queries, alpha=1.0, threshold=0.5,
+                diffusion_model='IC', real_graph=G_full
+            )
+            # IMMETA richiede node_features
+            seeds, explored_graph, sigma = model.run(G_full, node_features)
+            
+        elif model_type == "RAND":
+            model = RandomBaseline(
+                k=5, T=num_queries, real_graph=G_full
+            )
+            # RAND ignora node_features, ma manteniamo la firma simile
+            seeds, explored_graph, sigma = model.run(G_full)
+
         nodes_sum += len(explored_graph.nodes())
         sigma_sum += sigma
-        print(f"sigma {sigma}")
     
     avg_nodes = nodes_sum / MC_SIM
     avg_sigma = sigma_sum / MC_SIM
-    
-    print(f"  average discovered nodes: {avg_nodes}")
-    print(f"  average sigma: {avg_sigma}")
     
     return avg_nodes, avg_sigma
 
@@ -55,7 +65,7 @@ def main():
     print(f"using device: {device}")
 
     print("\nloading dataset...")
-    G_real, real_node_features = coauthor_data(COAUTHOR_DATASET)
+    G_full, real_node_features = coauthor_data(COAUTHOR_DATASET)
     
     # NODE METADATA IMPUTATION
     try:
@@ -97,8 +107,8 @@ def main():
 
     
     # MONTECARLO experiment
-    # G_real = forest_fire_sample(G_real, target_size=3000, p_forward=0.35, p_backward=0.3)
-    # print(f"forest fire: {len(g_full.nodes())} nodes and {len(g_full.edges())} edges")
+    G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.15)
+    print(f"forest fire: {len(G_real.nodes())} nodes and {len(G_real.edges())} edges")
     
     try:
         with open(results_file_name, 'w', encoding='utf-8') as f:
@@ -108,20 +118,29 @@ def main():
             for budget in budgets_to_test:
                 print(f"\n--- executing budget: {budget} queries ---")
                 
-                discovered_nodes, obtained_sigma = run_experiment(
+                # IM-META
+                nodes_immeta, sigma_immeta = run_experiment(
+                    "IMMETA",
                     G_real, 
-                    node_features_RECONSTRUCTED, # data reconstructed by GSM 
+                    node_features_RECONSTRUCTED, 
+                    FEATURE_DIM, 
+                    budget
+                )
+                
+                # RAND
+                nodes_rand, sigma_rand = run_experiment(
+                    "RAND",
+                    G_real, 
+                    None, # Rand non usa features
                     FEATURE_DIM, 
                     budget
                 )
                 
                 f.write(f"[budget = {budget}]\n")
-                f.write(f"  discovered nodes (avg): {discovered_nodes}\n")
-                f.write(f"  obtained sigma (avg): {obtained_sigma}\n\n")
-                print(f"sigma: {obtained_sigma}")
+                f.write(f"  IM-META -> Nodes: {nodes_immeta}, Sigma: {sigma_immeta}\n")
+                f.write(f"  RAND    -> Nodes: {nodes_rand}, Sigma: {sigma_rand}\n\n")
                 
-            print(f"\n--- experiments completed ---")
-            print(f"all results saved to '{results_file_name}'.")
+                print(f"Result: IM-META Sigma: {sigma_immeta} vs RAND Sigma: {sigma_rand}")
 
     except IOError as e:
         print(f"error: could not write to file '{results_file_name}'. details: {e}")

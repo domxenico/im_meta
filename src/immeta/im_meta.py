@@ -112,9 +112,30 @@ class IMMETA:
         self.network_inference.train(node_features, explored_graph, epochs=20)
         
         uncertain_pairs = []
-        for u in explored_nodes:
-            for v in explored_nodes:
-                if u < v and not explored_graph.has_edge(u, v):
+        # 1. Archi interni (explored <-> explored)
+        explored_list = list(explored_nodes)
+        for i in range(len(explored_list)):
+            for j in range(i + 1, len(explored_list)):
+                u, v = explored_list[i], explored_list[j]
+                if not explored_graph.has_edge(u, v):
+                    uncertain_pairs.append((u, v))
+        
+        # 2. Archi di frontiera (explored <-> unexplored)
+        # CRUCIALE: Senza questo, i nodi esplorati sono isolati dal resto del mondo
+        # e l'influenza stimata sarà errata.
+        all_nodes_set = set(node_features.keys()) # o set(G_full.nodes())
+        unexplored_list = list(all_nodes_set - explored_nodes)
+        
+        # Campionamento per efficienza (come nel paper si parla di computational complexity)
+        # Se il grafo è enorme, potresti dover limitare questo loop, 
+        # ma concettualmente devi testare connessioni verso l'esterno.
+        sample_size = min(len(unexplored_list), 1000) 
+        
+        if sample_size > 0:
+            for u in explored_nodes:
+                # Testiamo connessioni verso un campione di nodi inesplorati
+                targets = random.sample(unexplored_list, sample_size)
+                for v in targets:
                     uncertain_pairs.append((u, v))
         
         edge_probs = self.network_inference.predict_edge_probabilities(
@@ -122,8 +143,10 @@ class IMMETA:
         )
         
         unexplored_nodes = all_nodes_set - explored_nodes
+        
+        # FIX: Passiamo 'all_nodes_set' invece di 'unexplored_nodes'
         G_final = self.graph_generator.generate(
-            explored_graph, edge_probs, unexplored_nodes, queried_nodes
+            explored_graph, edge_probs, all_nodes_set, queried_nodes
         )
         
         print("selecting seed nodes...")
