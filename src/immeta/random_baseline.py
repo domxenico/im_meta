@@ -63,9 +63,8 @@ class RandomBaseline:
         print("[random] selecting seeds on observable graph...")
         
         # --- SEED SELECTION PHASE ---
-        seeds, est_sigma = self.seed_selector.select_seeds(explored_graph, explored_nodes)
         
-        real_sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seed_set=seeds)
+        seeds, est_sigma, real_sigma = self.seed_selector.select_seeds(explored_graph, explored_nodes)
         
         print(f"[random] selected seeds: {seeds}")
         print(f"[random] real sigma: {real_sigma}")

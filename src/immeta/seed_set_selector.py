@@ -65,9 +65,9 @@ class SeedSetSelector:
         
         # --- CALCOLO DELLA SIGMA REALE (VALIDAZIONE) ---
         # Usiamo self.real_graph per vedere quanto valgono davvero questi seed
-        # real_sigma = self._compute_real_influence_spread(self.real_graph, seeds)
+        real_sigma = self._compute_real_influence_spread(self.real_graph, seeds)
 
-        return seeds, est_sigma
+        return seeds, est_sigma, real_sigma
     
     def _compute_influence_spread(self, G: nx.Graph, seed_set: List[int]) -> float:
         """estimated influence spread via Monte Carlo 
