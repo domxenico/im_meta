@@ -40,13 +40,13 @@ def run_experiment(model_type, G_full, node_features, feature_dim, num_queries):
                 k=5, T=num_queries, alpha=1.0, threshold=0.5,
                 diffusion_model='IC', real_graph=G_full
             )
-            seeds, explored_graph, sigma = model.run(G_full, node_features)
+            explored_graph, sigma = model.run(G_full, node_features)
             
         elif model_type == "RAND":
             model = RandomBaseline(
                 k=5, T=num_queries, real_graph=G_full
             )
-            seeds, explored_graph, sigma = model.run(G_full)
+            explored_graph, sigma = model.run(G_full)
 
         nodes_sum += len(explored_graph.nodes())
         sigma_sum += sigma
@@ -103,7 +103,6 @@ def main():
         device
     )
 
-    
     # MONTECARLO experiment
     G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.25)
     print(f"forest fire: {len(G_real.nodes())} nodes and {len(G_real.edges())} edges")
@@ -124,7 +123,7 @@ def main():
                     FEATURE_DIM, 
                     budget
                 )
-                
+
                 # RAND
                 nodes_rand, sigma_rand = run_experiment(
                     "RAND",

@@ -1,23 +1,22 @@
 import random
-from collections import deque
+import numpy as np
 import networkx as nx
+from collections import deque
 
 def forest_fire_sample(G_full, target_size=3000, p_forward=0.7):
     """
-    forest fire sampling for undirected graphs
+    Implementazione esatta del Forest Fire come descritto in 'Sampling from Large Graphs', 
+    Appendice A.1 (Leskovec et al., KDD'06).
     """
-    
     if len(G_full) <= target_size:
         return G_full.copy()
     
     visited = set()
     
-    # until we don't reach the target dimension
+    # Loop principale per i restart (se il fuoco muore) [cite: 438]
     while len(visited) < target_size:
         
-        # restart mechanism
-        # if queue empty but we didn't finish, we choose a new seed
-        # (into nonvisited nodes)
+        # Selezione nuovo seed se necessario [cite: 438]
         remaining_nodes = list(set(G_full.nodes()) - visited)
         if not remaining_nodes:
             break
@@ -26,23 +25,36 @@ def forest_fire_sample(G_full, target_size=3000, p_forward=0.7):
         visited.add(seed)
         queue = deque([seed])
         
-        # burn process
         while queue and len(visited) < target_size:
             u = queue.popleft()
             
-            # non visited neighbors
-            neighbors = [n for n in G_full.neighbors(u) if n not in visited]
-            random.shuffle(neighbors)
+            # 1. Identifica i vicini non visitati ("links incident to nodes not yet visited") 
+            unvisited_neighbors = [n for n in G_full.neighbors(u) if n not in visited]
             
-            # Bruciamo geometricamente o probabilisticamente
-            # Qui usiamo la logica probabilistica per arco (simil-percolazione)
-            # che è più semplice e spesso usata come approssimazione
-            for v in neighbors:
-                if len(visited) >= target_size:
-                    break
+            # 2. Genera numero casuale x geometricamente distribuito 
+            # La media deve essere p / (1 - p). 
+            # In numpy, geometric(q) ha media 1/q. 
+            # Se poniamo q = 1 - p_forward, la media di (geometric(1-p) - 1) è:
+            # (1 / (1-p)) - 1 = (1 - (1-p)) / (1-p) = p / (1-p). Corretto.
+            if p_forward >= 1.0:
+                x = len(unvisited_neighbors) # Brucia tutto se p=1
+            else:
+                # np.random.geometric prende il parametro di successo (1 - p_forward)
+                # Sottraiamo 1 perché numpy genera valori >= 1, ma noi possiamo bruciare 0 vicini.
+                x = np.random.geometric(p=1.0 - p_forward) - 1
+            
+            # 3. Il nodo seleziona x vicini 
+            # Se x è maggiore dei vicini disponibili, li prende tutti.
+            count_to_burn = min(x, len(unvisited_neighbors))
+            
+            if count_to_burn > 0:
+                # La selezione è casuale ("Node v selects x out-links") 
+                burned_neighbors = random.sample(unvisited_neighbors, count_to_burn)
                 
-                if random.random() < p_forward:
+                for v in burned_neighbors:
+                    if len(visited) >= target_size:
+                        break
                     visited.add(v)
-                    queue.append(v)
-    
+                    queue.append(v) # Ricorsione [cite: 436]
+
     return G_full.subgraph(visited).copy()

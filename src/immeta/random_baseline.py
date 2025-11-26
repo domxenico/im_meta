@@ -59,15 +59,15 @@ class RandomBaseline:
             # Nota: se usassi il modello WC, dovresti calcolare 1/in_degree qui.
             # Ma 0.1 è lo standard per i confronti IC.
 
-        print(f"[Random] Exploration finished. Explored graph size: {len(explored_graph.nodes())} nodes.")
-        print("[Random] Selecting seeds on observable graph (no inference)...")
+        print(f"[random] exploration finished. explored graph size: {len(explored_graph.nodes())} nodes.")
+        print("[random] selecting seeds on observable graph...")
         
         # --- SEED SELECTION PHASE ---
         seeds, est_sigma = self.seed_selector.select_seeds(explored_graph, explored_nodes)
         
         real_sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seed_set=seeds)
         
-        print(f"[Random] Selected seeds: {seeds}")
-        print(f"[Random] Real Sigma: {real_sigma}")
+        print(f"[random] selected seeds: {seeds}")
+        print(f"[random] real sigma: {real_sigma}")
         
-        return seeds, explored_graph, real_sigma
+        return explored_graph, real_sigma

@@ -149,11 +149,11 @@ class IMMETA:
         )
         
         print("selecting seed nodes...")
-        seeds, est_sigma = self.seed_selector.select_seeds(G_final, explored_nodes)
-        print("computing influence spread on real graph")
-        sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seed_set=seeds)
         
-        print(f"im meta sigma: {sigma}")
-        # print(f"\nselected seeds: {seeds}")
+        seeds, est_sigma, real_sigma = self.seed_selector.select_seeds(G_final, explored_nodes)
         
-        return seeds, explored_graph, sigma
+        print(f"selection Completed.")
+        # print(f"  estimated Sigma (on reinforced graph): {est_sigma:.2f}")
+        print(f"  real Sigma (on Ground Truth): {real_sigma:.2f}")
+        
+        return explored_graph, real_sigma

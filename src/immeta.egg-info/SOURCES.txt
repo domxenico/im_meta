@@ -3,6 +3,7 @@ setup.py
 src/immeta/__init__.py
 src/immeta/coauthor_data.py
 src/immeta/feature_utils.py
+src/immeta/forest_fire - Copia.py
 src/immeta/forest_fire.py
 src/immeta/gsm.py
 src/immeta/im_meta.py

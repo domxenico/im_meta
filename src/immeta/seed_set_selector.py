@@ -1,3 +1,4 @@
+import heapq
 from typing import Dict, List, Tuple, Set
 import networkx as nx
 import random
@@ -9,31 +10,64 @@ class SeedSetSelector:
         self.ic_diff_prob = ic_diff_prob
         self.real_graph = real_graph
     
-    def select_seeds(self, G: nx.Graph, explored_nodes: Set[int]) -> List[int]:
-        """modified greedy"""
+    def select_seeds(self, G: nx.Graph, explored_nodes: Set[int]) -> Tuple[List[int], float, float]:
+        """
+        Seleziona i seed usando l'ottimizzazione CELF (Lazy Greedy) sul grafo rinforzato G.
+        Ritorna:
+            - seeds: La lista dei nodi selezionati.
+            - est_sigma: L'influenza stimata sul grafo rinforzato (quella che l'algoritmo crede di avere).
+            - real_sigma: L'influenza reale sul grafo vero (ground truth).
+        """
+        candidates = list(explored_nodes)
+        
+        # --- [CELF] Fase 1: Calcolo iniziale ---
+        gains = [] 
+        base_spread = 0.0
+        
+        for node in candidates:
+            # Calcoliamo lo spread su G (grafo rinforzato/inferito)
+            spread = self._compute_influence_spread(G, [node])
+            marginal_gain = spread - base_spread
+            # Usiamo un min-heap con valori negativi per simulare un max-heap
+            heapq.heappush(gains, (-marginal_gain, node))
+            
+        # --- [CELF] Fase 2: Selezione iterativa ---
         seeds = []
+        est_sigma = 0.0 # Questa è l'influenza stimata (accumulata)
         
-        for i in range(self.k):
-            best_node = None
-            best_marginal_spread = 0
-            
-            for v in explored_nodes:
-                if v not in seeds:
-                    # sigma({v} U S) - sigma(S) [marginal spread]
-                    marginal = self._compute_influence_spread(G, seeds + [v]) - \
-                              self._compute_influence_spread(G, seeds)
+        while len(seeds) < self.k:
+            matched = False
+            while not matched and gains:
+                gain, best_node = heapq.heappop(gains)
+                gain = -gain
+                
+                if len(seeds) == 0:
+                    matched = True
+                    seeds.append(best_node)
+                    est_sigma += gain
+                else:
+                    # Ricalcoliamo il guadagno marginale su G
+                    new_spread = self._compute_influence_spread(G, seeds + [best_node])
+                    marginal_gain = new_spread - est_sigma
                     
-                    if marginal > best_marginal_spread:
-                        best_marginal_spread = marginal
-                        best_node = v
-            
-            if best_node is not None:
-                seeds.append(best_node)
+                    if not gains:
+                        matched = True
+                        seeds.append(best_node)
+                        est_sigma = new_spread
+                    else:
+                        next_best_gain = -gains[0][0]
+                        if marginal_gain >= next_best_gain:
+                            matched = True
+                            seeds.append(best_node)
+                            est_sigma = new_spread
+                        else:
+                            heapq.heappush(gains, (-marginal_gain, best_node))
         
-        sigma = self._compute_real_influence_spread(G, seeds)
-        est_sigma = self._compute_influence_spread(G, seeds)
+        # --- CALCOLO DELLA SIGMA REALE (VALIDAZIONE) ---
+        # Usiamo self.real_graph per vedere quanto valgono davvero questi seed
+        # real_sigma = self._compute_real_influence_spread(self.real_graph, seeds)
 
-        return seeds, sigma
+        return seeds, est_sigma
     
     def _compute_influence_spread(self, G: nx.Graph, seed_set: List[int]) -> float:
         """estimated influence spread via Monte Carlo 
