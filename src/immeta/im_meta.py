@@ -144,7 +144,6 @@ class IMMETA:
         
         unexplored_nodes = all_nodes_set - explored_nodes
         
-        # FIX: Passiamo 'all_nodes_set' invece di 'unexplored_nodes'
         G_final = self.graph_generator.generate(
             explored_graph, edge_probs, all_nodes_set, queried_nodes
         )
@@ -154,10 +153,7 @@ class IMMETA:
         print("computing influence spread on real graph")
         sigma = self.seed_selector._compute_real_influence_spread(self.real_graph, seed_set=seeds)
         
-        print(f"est_sigma: {est_sigma}\nreal_sigma: {sigma}")
-        print(f"\nselected seeds: {seeds}")
-        
-        # theoretically this should be the way we test the seeds and we plot sigma but it is not made in this way
-        
+        print(f"im meta sigma: {sigma}")
+        # print(f"\nselected seeds: {seeds}")
         
         return seeds, explored_graph, sigma

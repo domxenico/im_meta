@@ -40,14 +40,12 @@ def run_experiment(model_type, G_full, node_features, feature_dim, num_queries):
                 k=5, T=num_queries, alpha=1.0, threshold=0.5,
                 diffusion_model='IC', real_graph=G_full
             )
-            # IMMETA richiede node_features
             seeds, explored_graph, sigma = model.run(G_full, node_features)
             
         elif model_type == "RAND":
             model = RandomBaseline(
                 k=5, T=num_queries, real_graph=G_full
             )
-            # RAND ignora node_features, ma manteniamo la firma simile
             seeds, explored_graph, sigma = model.run(G_full)
 
         nodes_sum += len(explored_graph.nodes())
@@ -107,7 +105,7 @@ def main():
 
     
     # MONTECARLO experiment
-    G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.15)
+    G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.25)
     print(f"forest fire: {len(G_real.nodes())} nodes and {len(G_real.edges())} edges")
     
     try:
@@ -131,7 +129,7 @@ def main():
                 nodes_rand, sigma_rand = run_experiment(
                     "RAND",
                     G_real, 
-                    None, # Rand non usa features
+                    None,
                     FEATURE_DIM, 
                     budget
                 )

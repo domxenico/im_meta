@@ -4,38 +4,35 @@ import networkx as nx
 
 def forest_fire_sample(G_full, target_size=3000, p_forward=0.7):
     """
-    Forest Fire sampling corretto con meccanismo di restart.
-    Nota: Per grafi non diretti, p_backward è ridondante, usiamo solo p_forward.
+    forest fire sampling for undirected graphs
     """
-    # Se il grafo è più piccolo del target, restituiscilo tutto
+    
     if len(G_full) <= target_size:
         return G_full.copy()
     
-    # Insieme dei nodi visitati
     visited = set()
     
-    # Loop principale: continua finché non raggiungiamo la dimensione target
+    # until we don't reach the target dimension
     while len(visited) < target_size:
         
-        # --- MECCANISMO DI RESTART ---
-        # Se la coda è vuota ma non abbiamo finito, scegliamo un nuovo seed
-        # (cercando tra i nodi non ancora visitati)
+        # restart mechanism
+        # if queue empty but we didn't finish, we choose a new seed
+        # (into nonvisited nodes)
         remaining_nodes = list(set(G_full.nodes()) - visited)
         if not remaining_nodes:
-            break # Abbiamo esaurito l'intero grafo
-            
+            break
+        
         seed = random.choice(remaining_nodes)
         visited.add(seed)
         queue = deque([seed])
         
-        # --- PROCESSO DI BRUCIATURA (Burn) ---
+        # burn process
         while queue and len(visited) < target_size:
             u = queue.popleft()
             
-            # Ottieni i vicini non ancora visitati
-            # (Ottimizzazione: filtriamo subito quelli già visitati)
+            # non visited neighbors
             neighbors = [n for n in G_full.neighbors(u) if n not in visited]
-            random.shuffle(neighbors) # Mischiamo per evitare bias di ordine
+            random.shuffle(neighbors)
             
             # Bruciamo geometricamente o probabilisticamente
             # Qui usiamo la logica probabilistica per arco (simil-percolazione)
