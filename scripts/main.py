@@ -11,9 +11,9 @@ from immeta.feature_utils import create_dirty_features
 from immeta.feature_utils import reconstruct_features
 from immeta.forest_fire import forest_fire_sample
 
-MC_SIM = 10
-COAUTHOR_DATASET = "CS"
-budgets_to_test = [20] # in case of various budget test add [20, desired_budget, another_desired_budget]
+MC_SIM = 1
+COAUTHOR_DATASET = "Physics"
+budgets_to_test = [40] # in case of various budget test add [20, desired_budget, another_desired_budget]
 results_file_name = "results_log.txt"
 
 FEATURE_DIM = 6805 if COAUTHOR_DATASET == 'CS' else 8415 # Physics
@@ -104,7 +104,7 @@ def main():
     )
 
     # MONTECARLO experiment
-    G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.3)
+    G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.5)
     print(f"forest fire: {len(G_real.nodes())} nodes and {len(G_real.edges())} edges")
     
     try:
