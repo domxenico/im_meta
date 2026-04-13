@@ -65,7 +65,7 @@ def main():
     print("\nloading dataset...")
     G_full, real_node_features = coauthor_data(COAUTHOR_DATASET)
     
-    # NODE METADATA IMPUTATION
+    # node metadata imputation
     try:
         # matrix N_nodes x M_features 
         all_features_np = np.stack([real_node_features[i] for i in range(len(real_node_features))])
@@ -79,7 +79,7 @@ def main():
     
     if not os.path.exists(GSM_MODEL_PATH):
         print(f"cannot find pre-trained GSM at '{GSM_MODEL_PATH}'.")
-        # GSM training
+        # gsm training
         train_gsm_model(
             full_features=all_features_tensor,
             input_dim=FEATURE_DIM,
@@ -103,7 +103,7 @@ def main():
         device
     )
 
-    # MONTECARLO experiment
+    # montecarlo experiment
     G_real = forest_fire_sample(G_full, target_size=3000, p_forward=0.5)
     print(f"forest fire: {len(G_real.nodes())} nodes and {len(G_real.edges())} edges")
     

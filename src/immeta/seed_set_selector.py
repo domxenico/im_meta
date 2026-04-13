@@ -12,28 +12,28 @@ class SeedSetSelector:
     
     def select_seeds(self, G: nx.Graph, explored_nodes: Set[int]) -> Tuple[List[int], float, float]:
         """
-        Seleziona i seed usando l'ottimizzazione CELF (Lazy Greedy) sul grafo rinforzato G.
-        Ritorna:
-            - seeds: La lista dei nodi selezionati.
-            - est_sigma: L'influenza stimata sul grafo rinforzato (quella che l'algoritmo crede di avere).
-            - real_sigma: L'influenza reale sul grafo vero (ground truth).
+        select seeds using celf optimization (lazy greedy) on reinforced graph G
+        returns:
+            - seeds: selected nodes list
+            - est_sigma: estimated influence spread on reinforced graph
+            - real_sigma: real influence spread on true graph (ground truth)
         """
         candidates = list(explored_nodes)
         
-        # --- [CELF] Fase 1: Calcolo iniziale ---
+        # celf phase 1: initial computation
         gains = [] 
         base_spread = 0.0
         
         for node in candidates:
-            # Calcoliamo lo spread su G (grafo rinforzato/inferito)
+            # compute spread on reinforced graph G
             spread = self._compute_influence_spread(G, [node])
             marginal_gain = spread - base_spread
-            # Usiamo un min-heap con valori negativi per simulare un max-heap
+            # max-heap simulation using negative values
             heapq.heappush(gains, (-marginal_gain, node))
             
-        # --- [CELF] Fase 2: Selezione iterativa ---
+        # celf phase 2: iterative selection
         seeds = []
-        est_sigma = 0.0 # Questa è l'influenza stimata (accumulata)
+        est_sigma = 0.0 # estimated accumulated influence
         
         while len(seeds) < self.k:
             matched = False
@@ -46,7 +46,7 @@ class SeedSetSelector:
                     seeds.append(best_node)
                     est_sigma += gain
                 else:
-                    # Ricalcoliamo il guadagno marginale su G
+                    # recompute marginal gain on G
                     new_spread = self._compute_influence_spread(G, seeds + [best_node])
                     marginal_gain = new_spread - est_sigma
                     
@@ -63,16 +63,13 @@ class SeedSetSelector:
                         else:
                             heapq.heappush(gains, (-marginal_gain, best_node))
         
-        # --- CALCOLO DELLA SIGMA REALE (VALIDAZIONE) ---
-        # Usiamo self.real_graph per vedere quanto valgono davvero questi seed
+        # compute real sigma for evaluation using ground truth graph
         real_sigma = self._compute_real_influence_spread(self.real_graph, seeds)
 
         return seeds, est_sigma, real_sigma
     
     def _compute_influence_spread(self, G: nx.Graph, seed_set: List[int]) -> float:
-        """estimated influence spread via Monte Carlo 
-        simulation with independent cascade [sigma(.)]"""
-
+        """estimated influence spread via monte carlo simulation with independent cascade"""
         total_influenced = 0
         
         for _ in range(self.num_simulations):
@@ -84,7 +81,7 @@ class SeedSetSelector:
                 for u in active:
                     for v in G.neighbors(u):
                         if v not in influenced:
-                            # activation probability = theta_uv * IC diffusion probability
+                            # activation via theta_uv probability
                             if random.random() < (G[u][v]['weight']):
                                 influenced.add(v)
                                 new_active.append(v)
@@ -95,9 +92,7 @@ class SeedSetSelector:
         return total_influenced / self.num_simulations
     
     def _compute_real_influence_spread(self, G: nx.Graph, seed_set: List[int]):
-        """real influence spread via Monte Carlo 
-        simulation with independent cascade [sigma(.)]"""
-
+        """real influence spread via monte carlo simulation with independent cascade"""
         total_influenced = 0
         
         for _ in range(self.num_simulations):

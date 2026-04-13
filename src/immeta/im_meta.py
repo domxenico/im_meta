@@ -112,7 +112,7 @@ class IMMETA:
         self.network_inference.train(node_features, explored_graph, epochs=20)
         
         uncertain_pairs = []
-        # 1. Archi interni (explored <-> explored)
+        # internal edges (explored <-> explored)
         explored_list = list(explored_nodes)
         for i in range(len(explored_list)):
             for j in range(i + 1, len(explored_list)):
@@ -120,20 +120,16 @@ class IMMETA:
                 if not explored_graph.has_edge(u, v):
                     uncertain_pairs.append((u, v))
         
-        # 2. Archi di frontiera (explored <-> unexplored)
-        # CRUCIALE: Senza questo, i nodi esplorati sono isolati dal resto del mondo
-        # e l'influenza stimata sarà errata.
-        all_nodes_set = set(node_features.keys()) # o set(G_full.nodes())
+        # border edges (explored <-> unexplored)
+        # evaluates connections to the rest of the available network
+        all_nodes_set = set(node_features.keys())
         unexplored_list = list(all_nodes_set - explored_nodes)
         
-        # Campionamento per efficienza (come nel paper si parla di computational complexity)
-        # Se il grafo è enorme, potresti dover limitare questo loop, 
-        # ma concettualmente devi testare connessioni verso l'esterno.
+        # sample targets to limit complexity
         sample_size = min(len(unexplored_list), 1000) 
         
         if sample_size > 0:
             for u in explored_nodes:
-                # Testiamo connessioni verso un campione di nodi inesplorati
                 targets = random.sample(unexplored_list, sample_size)
                 for v in targets:
                     uncertain_pairs.append((u, v))

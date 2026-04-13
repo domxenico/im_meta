@@ -8,14 +8,12 @@ import random
 import time
 import os
 
-
 from .siamese_network import SiameseNetwork
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("using device:", device)
 
 CHECKPOINT_PATH = "./checkpoints/"
-
 
 class NetworkInference:
     def __init__(self, feature_dim: int, embedding_dim: int = 256, learning_rate: float = 0.001):
@@ -26,22 +24,20 @@ class NetworkInference:
         self.criterion = nn.BCELoss()
         
     def create_training_pairs(self, node_features: Dict[int, np.ndarray], explored_graph: nx.Graph):
-        """creates balanced training pairs"""
+        """create balanced training pairs"""
         
         positive_pairs = []
         for u, v in explored_graph.edges():
             if u in node_features and v in node_features:
                 positive_pairs.append((u, v))
         
-        # negative pairs (non-edges)
         explored_nodes = list(explored_graph.nodes())
         negative_pairs = []
         
-        # max_negatives = min(len(positive_pairs) * 2, len(explored_nodes) * (len(explored_nodes) - 1) // 2 - len(positive_pairs))
         max_negatives = len(positive_pairs)
         attempts = 0
         max_attempts = max_negatives * 20 
-        # print(f"max attempts {max_attempts} max negatives {max_negatives}")
+
         while len(negative_pairs) < max_negatives and attempts < max_attempts:
             u, v = random.sample(explored_nodes, 2)
             if not explored_graph.has_edge(u, v) and (u, v) not in negative_pairs and (v, u) not in negative_pairs:
@@ -56,7 +52,7 @@ class NetworkInference:
     def train(self, node_features: Dict[int, np.ndarray], explored_graph: nx.Graph, 
               epochs: int = 20, batch_size: int = 32):
         
-        """training with current graph"""
+        """train using current graph state"""
         self.model.train()
         
         positive_pairs, negative_pairs = self.create_training_pairs(node_features, explored_graph)
@@ -94,7 +90,6 @@ class NetworkInference:
                 if not batch_x1:
                     continue
                 
-                # convert to tensors
                 batch_x1_tensor = torch.tensor(np.array(batch_x1), dtype=torch.float32).to(device)
                 batch_x2_tensor = torch.tensor(np.array(batch_x2), dtype=torch.float32).to(device)
                 batch_labels_tensor = torch.tensor(batch_labels, dtype=torch.float32).to(device)
@@ -104,7 +99,6 @@ class NetworkInference:
                 loss = self.criterion(predictions, batch_labels_tensor)
                 loss.backward()
                 
-                # gradient clipping to prevent explosions
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 
                 self.optimizer.step()
@@ -116,9 +110,8 @@ class NetworkInference:
                 avg_loss = total_loss / total_batches
                 print(f"epoch {epoch+1}/{epochs}, loss: {avg_loss:.4f}")
                 
-                # early stopping if loss becomes NaN
                 if np.isnan(avg_loss):
-                    print("loss became NaN, stopping training")
+                    print("loss became nan, stopping training")
                     break
 
     def predict_edge_probabilities(self, node_features: Dict[int, np.ndarray], 
@@ -154,18 +147,16 @@ class NetworkInference:
         return probabilities
     
     def save_model_checkpoint(self):
-        """saves a .pth model checkpoint to the CHECKPOINT_PATH"""
-
+        """save model checkpoint to path"""
         time_string = time.strftime("%Y%m%d%H%M%S", time.localtime())
         torch.save(self.model.state_dict(), f"{CHECKPOINT_PATH}{time_string}.pth")
 
     def load_model_checkpoint(self, time_string):
-        """loads a .pth model checkpoint from the CHECKPOINT_PATH"""
-
-        file_path = f"{CHECKPOINT_PATH}{time_string}.pth" # Assumendo un'estensione .pth
+        """load model checkpoint from path"""
+        file_path = f"{CHECKPOINT_PATH}{time_string}.pth" 
     
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Checkpoint file not found: {file_path}")
+            raise FileNotFoundError(f"checkpoint file not found: {file_path}")
 
         state_dict = torch.load(file_path, map_location=torch.device('cpu'))
         self.model.load_state_dict(state_dict)

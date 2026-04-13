@@ -4,12 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 
-
 class AutoencoderGSM(nn.Module):
-    """
-    Un semplice Autoencoder MLP che funge da Generative Surrogate Model (GSM)
-    per l'imputazione di features.
-    """
+    """autoencoder mlp acting as generative surrogate model (gsm) for feature imputation"""
     def __init__(self, input_dim: int, latent_dim: int = 128):
         super().__init__()
         self.input_dim = input_dim
@@ -27,7 +23,7 @@ class AutoencoderGSM(nn.Module):
             nn.Linear(512, input_dim)
         )
 
-    def forward(self, x_combined: torch.Tensor) -> torch.Tensor: # <-- MODIFICA
+    def forward(self, x_combined: torch.Tensor) -> torch.Tensor:
         latent = self.encoder(x_combined)
         reconstructed = self.decoder(latent)
         return reconstructed
@@ -40,7 +36,7 @@ class MaskedFeatureDataset(Dataset):
         self.corruption_rate = corruption_rate
         
         if not (0 < corruption_rate < 1):
-            raise ValueError("Corruption rate must be between 0 and 1")
+            raise ValueError("corruption rate must be between 0 and 1")
 
     def __len__(self) -> int:
         return len(self.indices)
@@ -49,14 +45,14 @@ class MaskedFeatureDataset(Dataset):
         node_idx = self.indices[idx]
         x_clean = self.features[node_idx]
         
-        # 1.0 = "observed", 0.0 = "missing"
+        # 1.0 = observed, 0.0 = missing
         mask = (torch.rand_like(x_clean) > self.corruption_rate).float()
-        x_dirty = x_clean * mask  # applying mask
+        x_dirty = x_clean * mask
         
         return x_dirty, mask, x_clean
 
 def create_splits(num_nodes: int, train_p: float = 0.7, val_p: float = 0.1):
-    """Crea indici casuali per train, validation e test."""
+    """create random indices for train, validation and test splits"""
     indices = torch.randperm(num_nodes)
     train_size = int(num_nodes * train_p)
     val_size = int(num_nodes * val_p)
@@ -77,35 +73,30 @@ def train_gsm_model(
     device: torch.device,
     save_path: str
 ):
-    """Funzione completa per addestrare e salvare il GSM."""
+    """train and save gsm model"""
     
-    print("\n--- Inizio Addestramento GSM (Autoencoder) ---")
+    print("\n--- starting gsm training (autoencoder) ---")
     
-    # splits
     num_nodes = full_features.shape[0]
     train_idx, val_idx, _ = create_splits(num_nodes)
-    print(f"  GSM Splits -> Train: {len(train_idx)}, Val: {len(val_idx)}")
+    print(f"  gsm splits -> train: {len(train_idx)}, val: {len(val_idx)}")
     
-    # dataloaders
     train_dataset = MaskedFeatureDataset(full_features, train_idx, corruption_rate)
     val_dataset = MaskedFeatureDataset(full_features, val_idx, corruption_rate)
     
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
-    
     model = AutoencoderGSM(input_dim, latent_dim).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.BCEWithLogitsLoss()
 
-    # training loop
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
         for x_dirty, mask, x_clean in train_loader:
             x_dirty, mask, x_clean = x_dirty.to(device), mask.to(device), x_clean.to(device)
             
-            # input concat
             combined_input = torch.cat([x_dirty, mask], dim=1) 
             
             x_reconstructed = model(combined_input)
@@ -118,14 +109,12 @@ def train_gsm_model(
             
         avg_train_loss = train_loss / len(train_loader)
 
-        # validation
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
             for x_dirty, mask, x_clean in val_loader:
                 x_dirty, mask, x_clean = x_dirty.to(device), mask.to(device), x_clean.to(device)
                 
-                # input concat
                 combined_input = torch.cat([x_dirty, mask], dim=1) 
                 
                 x_reconstructed = model(combined_input)
@@ -134,10 +123,9 @@ def train_gsm_model(
         
         avg_val_loss = val_loss / len(val_loader)
         
-        print(f"  Epoch {epoch+1}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
-
+        print(f"  epoch {epoch+1}/{epochs} | train loss: {avg_train_loss:.4f} | val loss: {avg_val_loss:.4f}")
 
     torch.save(model.state_dict(), save_path)
-    print(f"--- GSM training completed. model saved at '{save_path}' ---")
+    print(f"--- gsm training completed. model saved at '{save_path}' ---")
     
     return model

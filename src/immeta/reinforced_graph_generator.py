@@ -16,21 +16,12 @@ class ReinforcedGraphGenerator:
         G_gen_prun = nx.Graph()
         G_gen_prun.add_nodes_from(all_nodes)
         
-        # add explored edges with probability 1.0
         for u, v in explored_graph.edges():
             G_gen_prun.add_edge(u, v, weight=0.1, edge_prob=1.0)
-        
-        # print(f"-------------DEBUG-------------")
-        # print(f"G_gen_prun has: {len(G_gen_prun.nodes())} nodes and {len(G_gen_prun.edges())} edges")
-        # time.sleep(5)
 
-        # select confident edges (theta >= threshold)
+        # select confident edges 
         confident_edges = {pair: prob for pair, prob in edge_probabilities.items() 
                           if prob >= self.threshold}
-        
-        # print(f"-------------DEBUG-------------")
-        # print(f"confident edges are: {len(confident_edges)}")
-        # time.sleep(10)
 
         # add confident inferred edges
         for (u, v), theta in confident_edges.items():
